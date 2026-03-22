@@ -197,8 +197,8 @@ class ElectronicDescriptor:
 
                 atom_eigs = []
                 col = 0
-                for n_idx in range(self.n_radial):
-                    for l in range(self.l_max + 1):
+                for l in range(self.l_max + 1):
+                    for n_idx in range(self.n_radial):
                         n_m = 2 * l + 1  # number of m values
                         block = PDM[col:col + n_m, col:col + n_m]
                         eigs = np.sort(np.linalg.eigvalsh(block))
