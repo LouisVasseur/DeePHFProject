@@ -1,3 +1,8 @@
 deephf_datasets/
 __pycache__/
 .tgz
+hf_mobml_datasets/
+tries/
+logs/
+*.log
+*.sh

@@ -960,6 +960,7 @@ def load_mobml(
                 "E_corr_kcal": E_corr * 627.5094740631,
                 "subset": subset,
                 "mol_id_original": mol_id,
+                "xyz_path" : xyz_path
             },
             source=f"mobml_{subset}",
             mol_id=f"mobml_{subset}_{mol_id}",

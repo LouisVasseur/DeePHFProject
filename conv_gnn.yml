@@ -1,0 +1,21 @@
+model:
+  in_dimension: 17        # Number of node features
+  hidden_dimension: 64
+  out_dimension: 1
+  T: 5 # Number of timesteps during message passing
+
+train:
+  max_epochs: 500
+  val_freq: 175
+  max_grad_norm: 10.0
+  optimizer:
+    type: adamw            # adamw
+    lr: 3.e-4
+    weight_decay: 1.e-2
+    beta1: 0.9
+    beta2: 0.999
+  scheduler:
+    type: plateau          # currently only plateau is supported
+    factor: 0.5
+    patience: 5
+    min_lr: 1.e-5

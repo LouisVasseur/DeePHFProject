@@ -1,0 +1,70 @@
+import torch
+from torch import nn
+from torch_geometric.nn.conv import NNConv
+from torch_geometric.nn import MLP, global_add_pool
+from torch.nn import GRUCell
+
+
+
+class corr_gnn (nn.Module):
+
+    def __init__ (
+            self, 
+            in_dimension: int,
+            hidden_dimension: int,
+            out_dimension: int = 1,
+            T:int = 5
+    ):
+        super().__init__()
+        self.in_dimension = in_dimension
+        self.hidden_dimension = hidden_dimension
+        self.out_dimension = out_dimension
+        self.T = T
+        self.edge_attribute = 5
+
+        # Define initial projection layer
+        self.projection_layer = MLP([self.in_dimension, self.hidden_dimension])
+
+        # Define MPNN convolution
+        self.convolution = NNConv(in_channels=self.hidden_dimension, out_channels=self.hidden_dimension,
+                                  nn=MLP([self.edge_attribute, 2 * self.hidden_dimension,
+                                          self.hidden_dimension * self.hidden_dimension]),
+                                  aggr='add')
+        
+        # Define the node update function
+        self.node_update = GRUCell(input_size=self.hidden_dimension,hidden_size=self.hidden_dimension)
+
+        # Define residual connection + normalization after node update
+        self.norm = nn.LayerNorm(self.hidden_dimension)
+
+        # Define the neural networks that work with the graph embedding
+        self.mlp_hidden_and_initial_state = MLP([2 * self.hidden_dimension, self.hidden_dimension * 4, hidden_dimension])
+        self.mlp_hidden_state = MLP([self.hidden_dimension, 2 * self.hidden_dimension, self.hidden_dimension])
+
+        # Define output layer
+        self.mlp_output = MLP([hidden_dimension, hidden_dimension * 2, out_dimension])
+
+
+
+    def forward(self, node_feature_matrix, edge_indices_matrix, edge_feature_matrix, batch):
+
+        # The nodes are embedded into the hidden dimension
+        h = self.projection_layer(node_feature_matrix)
+        h_0 = h.clone()
+
+        # Message passing takes place
+        for _ in range(self.T):
+            m_timestep = self.convolution(h, edge_indices_matrix, edge_feature_matrix)
+            h = self.node_update(m_timestep, h)
+            h = self.norm(h) # Normalization
+
+        # Readout takes place
+        i = torch.sigmoid(self.mlp_hidden_and_initial_state(torch.cat([h, h_0], dim=-1)))
+        j = self.mlp_hidden_state(h)
+        node_scores = i * j
+
+        graph_embedding = global_add_pool(node_scores, batch)
+
+        output = self.mlp_output(graph_embedding)
+    
+        return output
