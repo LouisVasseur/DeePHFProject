@@ -52,7 +52,8 @@ class corr_gnn_wrapper(pl.LightningModule):
             in_dimension=config.model.in_dimension,
             hidden_dimension=config.model.hidden_dimension,
             out_dimension=config.model.out_dimension,
-            T=config.model.T
+            T=config.model.T,
+            version=config.model.version
         )
         
     @property

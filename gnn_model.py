@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch_geometric.nn.conv import NNConv
 from torch_geometric.nn import MLP, global_add_pool
-from torch.nn import GRUCell
+from torch.nn import GRUCell, LSTMCell
 
 
 
@@ -13,7 +13,8 @@ class corr_gnn (nn.Module):
             in_dimension: int,
             hidden_dimension: int,
             out_dimension: int = 1,
-            T:int = 5
+            T:int = 5,
+            version: str = "v1"
     ):
         super().__init__()
         self.in_dimension = in_dimension
@@ -21,6 +22,10 @@ class corr_gnn (nn.Module):
         self.out_dimension = out_dimension
         self.T = T
         self.edge_attribute = 5
+        if version == "v1" or version == "v2":
+            self.version = version
+        else:
+            raise ValueError(f'Version {version} is not implemented. Please choose between v1 and v2')
 
         # Define initial projection layer
         self.projection_layer = MLP([self.in_dimension, self.hidden_dimension])
@@ -32,9 +37,12 @@ class corr_gnn (nn.Module):
                                   aggr='add')
         
         # Define the node update function
-        self.node_update = GRUCell(input_size=self.hidden_dimension,hidden_size=self.hidden_dimension)
+        if self.version == "v1":
+            self.node_update = GRUCell(input_size=self.hidden_dimension,hidden_size=self.hidden_dimension)
+        elif self.version == "v2":
+            self.node_update = LSTMCell(input_size=self.hidden_dimension, hidden_size=self.hidden_dimension)
 
-        # Define residual connection + normalization after node update
+        # Define normalization after node update
         self.norm = nn.LayerNorm(self.hidden_dimension)
 
         # Define the neural networks that work with the graph embedding
@@ -52,10 +60,17 @@ class corr_gnn (nn.Module):
         h = self.projection_layer(node_feature_matrix)
         h_0 = h.clone()
 
+        # Cell state vector needed for LSTM
+        if self.version == "v2":
+            c = torch.zeros_like(h)
+
         # Message passing takes place
         for _ in range(self.T):
             m_timestep = self.convolution(h, edge_indices_matrix, edge_feature_matrix)
-            h = self.node_update(m_timestep, h)
+            if self.version == "v1":
+                h = self.node_update(m_timestep, h)
+            elif self.version == "v2":
+                h, c = self.node_update(m_timestep, (h, c)) # The LSTM outputs both the hidden and cell states
             h = self.norm(h) # Normalization
 
         # Readout takes place

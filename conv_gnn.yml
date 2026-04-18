@@ -3,10 +3,11 @@ model:
   hidden_dimension: 64
   out_dimension: 1
   T: 5 # Number of timesteps during message passing
+  version: v2 # v1 uses GRU for the update function while v2 uses LSTM for the update function
 
 train:
   max_epochs: 500
-  val_freq: 175
+  val_freq: 20
   max_grad_norm: 10.0
   optimizer:
     type: adamw            # adamw
