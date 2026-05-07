@@ -1,0 +1,33 @@
+services:
+  deephf:
+    build:
+      context: ..
+      dockerfile: app/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      # Repo root mounted so the container can import your .py modules directly
+      - ..:/app/project:ro
+
+      # ── Model checkpoints ──
+      # Place your trained .pt files in the repo root and they appear here.
+      # Any missing file is silently skipped — that model column shows "not loaded".
+      - ../model_elec.pt:/app/model_elec.pt:ro
+      - ../model_soap.pt:/app/model_soap.pt:ro
+      - ../model_comb.pt:/app/model_comb.pt:ro
+
+      # Persistent HF cache — already-computed molecules are not recomputed on restart.
+      # Run `docker compose down -v` to clear.
+      - deephf_cache:/app/cache_electronic
+
+    environment:
+      - MODEL_ELEC=/app/model_elec.pt
+      - MODEL_SOAP=/app/model_soap.pt
+      - MODEL_COMB=/app/model_comb.pt
+      - HF_BASIS=cc-pvdz
+      - W_ATOMIC=1.0
+
+    restart: unless-stopped
+
+volumes:
+  deephf_cache:

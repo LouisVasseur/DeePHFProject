@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeePHFProject — Correlation Energy Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+<!-- 3Dmol.js for post-prediction 3D viewer -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.4/3Dmol-min.js"></script>
+
+<style>
+  :root {
+    --bg:        #f7f5f0;
+    --surface:   #ffffff;
+    --border:    #ddd9d0;
+    --border2:   #c8c2b6;
+    --text:      #2a2520;
+    --text-mid:  #6b6258;
+    --text-dim:  #9c9288;
+    --accent:    #2a5298;
+    --success:   #2d6a4f;
+    --warn:      #b45309;
+    --danger:    #991b1b;
+    --col-elec:  #2a5298;
+    --col-soap:  #6b3fa0;
+    --col-comb:  #2d6a4f;
+    --col-gnn:   #9c9288;
+    --col-mp2:   #b45309;
+    --serif:     'Lora', Georgia, serif;
+    --mono:      'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 56px 24px 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+    max-width: 680px;
+    width: 100%;
+    animation: fadeIn 0.5s ease both;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: 28px; font-weight: 600;
+    color: var(--text); letter-spacing: -0.3px; margin-bottom: 4px;
+  }
+  .subtitle {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--text-dim); letter-spacing: 1.5px;
+    text-transform: uppercase; margin-bottom: 20px;
+  }
+  .divider { width: 40px; height: 1px; background: var(--border2); margin: 16px auto; }
+  .authors { font-size: 13px; color: var(--text-mid); line-height: 1.9; }
+  .authors .names { color: var(--text); font-style: italic; }
+  .authors .course {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 1px; color: var(--text-dim); margin-top: 4px; font-style: normal;
+  }
+
+  /* ── Input tabs ── */
+  .input-tabs {
+    width: 100%; max-width: 680px;
+    display: flex;
+    border: 1.5px solid var(--border2);
+    border-radius: 6px 6px 0 0;
+    overflow: hidden;
+    animation: fadeIn 0.5s 0.08s ease both;
+    opacity: 0;
+    background: var(--surface);
+  }
+  .tab-btn {
+    flex: 1; padding: 10px 16px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--text-dim); background: transparent;
+    border: none; cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    border-bottom: 2px solid transparent;
+  }
+  .tab-btn:hover { color: var(--text-mid); background: #f0f4fb; }
+  .tab-btn.active { color: var(--accent); border-bottom: 2px solid var(--accent); background: #f0f4fb; }
+  .tab-btn:not(:last-child) { border-right: 1px solid var(--border); }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    width: 100%; max-width: 680px;
+    border: 1.5px dashed var(--border2);
+    border-top: none; border-radius: 0 0 6px 6px;
+    padding: 48px 32px; text-align: center; cursor: pointer;
+    background: var(--surface);
+    transition: border-color 0.2s, background 0.2s;
+    animation: fadeIn 0.5s 0.1s ease both; opacity: 0;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent); border-style: solid; background: #f0f4fb;
+  }
+  .drop-label { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .drop-sub   { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+  .drop-sub strong { color: var(--accent); }
+  #file-input { display: none; }
+
+  /* ── SMILES panel ── */
+  .draw-panel {
+    width: 100%; max-width: 680px;
+    border: 1.5px solid var(--border2); border-top: none;
+    border-radius: 0 0 6px 6px;
+    background: var(--surface); overflow: hidden; display: none;
+  }
+  .draw-panel.active { display: block; }
+
+  /* SMILES pane */
+  .smiles-pane { padding: 24px 20px; }
+  .smiles-pane.active { display: block; }
+  .smiles-label {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 8px;
+  }
+  .smiles-row { display: flex; gap: 8px; align-items: stretch; }
+  .smiles-input {
+    flex: 1; padding: 9px 12px;
+    font-family: var(--mono); font-size: 13px;
+    border: 1.5px solid var(--border2); border-radius: 4px;
+    background: var(--bg); color: var(--text);
+    outline: none; transition: border-color 0.2s;
+  }
+  .smiles-input:focus { border-color: var(--accent); }
+  .smiles-input::placeholder { color: var(--text-dim); }
+  .smiles-examples {
+    margin-top: 10px; font-family: var(--mono); font-size: 10px;
+    color: var(--text-dim); line-height: 2;
+  }
+  .smiles-examples span {
+    display: inline-block; margin-right: 6px;
+    cursor: pointer; color: var(--accent); text-decoration: underline dotted;
+  }
+  .smiles-examples span:hover { opacity: 0.7; }
+
+  /* shared run button */
+  .btn-run {
+    padding: 9px 18px; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.5px; background: var(--accent); color: white;
+    border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;
+    transition: opacity 0.2s;
+  }
+  .btn-run:hover { opacity: 0.85; }
+  .btn-run:disabled { opacity: 0.4; cursor: default; }
+
+  /* ── Status bar ── */
+  .status-bar {
+    width: 100%; max-width: 680px; margin-top: 10px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 2px; opacity: 0; transition: opacity 0.3s; min-height: 28px;
+  }
+  .status-bar.visible { opacity: 1; }
+  .status-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--border2); flex-shrink: 0; transition: background 0.3s;
+  }
+  .status-dot.running { background: var(--accent); animation: pulse 1.2s ease infinite; }
+  .status-dot.success { background: var(--success); }
+  .status-dot.error   { background: var(--danger); }
+  .status-text { font-family: var(--mono); font-size: 11px; color: var(--text-mid); flex: 1; }
+  .status-time { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+
+  /* ── Progress ── */
+  .progress-wrap {
+    width: 100%; max-width: 680px; height: 2px;
+    background: var(--border); border-radius: 2px; overflow: hidden;
+    opacity: 0; transition: opacity 0.3s; margin-top: 2px;
+  }
+  .progress-wrap.visible { opacity: 1; }
+  .progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.4s ease; }
+  .progress-bar.indeterminate { width: 35%; animation: slide 1.4s ease infinite; }
+
+  /* ── Pipeline ── */
+  .pipeline { width: 100%; max-width: 680px; margin-top: 20px; display: none; }
+  .pipeline.visible { display: block; }
+  .pipeline-title {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 8px;
+  }
+  .step-list { display: flex; flex-direction: column; gap: 4px; }
+  .step {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border: 1px solid var(--border); border-radius: 4px;
+    font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    background: var(--surface); transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+  .step.active { border-color: var(--accent); color: var(--accent); background: #f0f4fb; }
+  .step.done   { border-color: #b8d4c4; color: var(--success); background: #f0f7f4; }
+  .step-num {
+    width: 16px; height: 16px; border-radius: 50%; border: 1px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; flex-shrink: 0;
+  }
+  .step.active .step-num { background: var(--accent); color: white; border-color: var(--accent); animation: pulse 1.2s ease infinite; }
+  .step.done   .step-num { background: var(--success); color: white; border-color: var(--success); }
+
+  /* ── Banners ── */
+  .banner {
+    width: 100%; max-width: 680px; border-radius: 4px; padding: 10px 14px;
+    font-family: var(--mono); font-size: 11px;
+    line-height: 1.6; margin-top: 10px; display: none;
+  }
+  .banner.visible { display: block; }
+  .banner.warn  { background: #fef3c7; border: 1px solid #d97706; color: var(--warn); }
+  .banner.error { background: #fee2e2; border: 1px solid #dc2626; color: var(--danger); }
+
+  /* ── 3D Viewer ── */
+  .viewer-wrap {
+    width: 100%; max-width: 680px;
+    margin-top: 24px; display: none;
+    animation: fadeIn 0.4s ease both;
+  }
+  .viewer-wrap.visible { display: block; }
+  .viewer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .viewer-title {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
+  }
+  .viewer-controls { display: flex; gap: 6px; }
+  .btn-style {
+    padding: 3px 10px; font-family: var(--mono); font-size: 10px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 3px; cursor: pointer; color: var(--text-mid);
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-style:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-style.active { border-color: var(--accent); color: var(--accent); background: #f0f4fb; }
+
+  #molViewer {
+    width: 100%; height: 340px;
+    border: 1.5px solid var(--border2); border-radius: 6px;
+    background: var(--bg); overflow: hidden; position: relative;
+  }
+
+  /* ── Results ── */
+  .results { width: 100%; max-width: 680px; margin-top: 28px; display: none; }
+  .results.visible { display: block; animation: fadeIn 0.4s ease both; }
+  .result-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 16px;
+  }
+  .result-title {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
+  }
+  .result-mol { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 500; }
+
+  .reference-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .model-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  @media (max-width: 600px) { .model-grid { grid-template-columns: 1fr 1fr; } }
+
+  .ecard { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; position: relative; }
+  .ecard-top { width: 100%; height: 2px; position: absolute; top: 0; left: 0; border-radius: 4px 4px 0 0; background: var(--card-color, var(--border)); }
+  .ecard.elec { --card-color: var(--col-elec); }
+  .ecard.soap { --card-color: var(--col-soap); }
+  .ecard.comb { --card-color: var(--col-comb); }
+  .ecard.gnn  { --card-color: var(--col-gnn); }
+  .ecard.mp2  { --card-color: var(--col-mp2); }
+  .ecard.hf   { --card-color: var(--border2); }
+
+  .card-tag { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--card-color, var(--text-dim)); margin-bottom: 5px; margin-top: 4px; }
+  .card-label { font-size: 11px; color: var(--text-mid); margin-bottom: 10px; line-height: 1.4; font-family: var(--mono); }
+  .card-value { font-family: var(--mono); font-size: 16px; font-weight: 500; color: var(--text); line-height: 1; margin-bottom: 3px; }
+  .ecard.elec .card-value { color: var(--col-elec); }
+  .ecard.soap .card-value { color: var(--col-soap); }
+  .ecard.comb .card-value { color: var(--col-comb); }
+  .ecard.gnn  .card-value { color: var(--col-gnn);  }
+  .ecard.mp2  .card-value { color: var(--col-mp2);  }
+  .card-unit  { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+  .card-delta { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+  .dval.good { color: var(--success); }
+  .dval.bad  { color: var(--danger); }
+  .coming-soon { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-top: 10px; font-style: italic; }
+
+  .meta-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .meta-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 3px 8px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+  .meta-chip strong { color: var(--text-mid); }
+
+  /* Footer */
+  footer { margin-top: 56px; width: 100%; max-width: 680px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .footer-note { font-size: 12px; color: var(--text-dim); line-height: 1.7; font-style: italic; }
+  .footer-local { margin-top: 8px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; text-align: right; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse  { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes slide  { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <h1>DeePHFProject</h1>
+  <p class="subtitle">Correlation Energy Predictor</p>
+  <div class="divider"></div>
+  <div class="authors">
+    <span class="names">Vera Dias Gomes · Cédric Nathanaël Rossboth · Octavian Susanu · Louis James Vasseur</span>
+    <div class="course">Team 1 &nbsp;·&nbsp; AI for Chemistry (CH-457) &nbsp;·&nbsp; EPFL</div>
+  </div>
+</header>
+
+<!-- Input tabs -->
+<div class="input-tabs" id="inputTabs">
+  <button class="tab-btn active" id="tab-file" onclick="switchTab('file')">📁 Upload .xyz file</button>
+  <button class="tab-btn"        id="tab-smiles" onclick="switchTab('smiles')">🔤 Enter SMILES</button>
+</div>
+
+<!-- Drop zone (file tab) -->
+<div class="drop-zone" id="dropZone">
+  <p class="drop-label">Drop your .xyz file here</p>
+  <p class="drop-sub">or click to browse &nbsp;·&nbsp; standard <strong>XYZ</strong> format</p>
+  <input type="file" id="file-input" accept=".xyz">
+</div>
+
+<!-- SMILES panel -->
+<div class="draw-panel" id="drawPanel">
+  <!-- SMILES text input -->
+  <div class="smiles-pane active" id="smilesPane">
+    <p class="smiles-label">SMILES string</p>
+    <div class="smiles-row">
+      <input class="smiles-input" id="smilesInput" type="text"
+        placeholder="e.g. CCO  or  c1ccccc1  or  CC(=O)O" spellcheck="false"
+        onkeydown="if(event.key==='Enter') runFromSmiles()">
+      <button class="btn-run" onclick="runFromSmiles()">Run prediction →</button>
+    </div>
+    <div class="smiles-examples">
+      Examples:
+      <span onclick="fillSmiles('CCO')">ethanol</span>
+      <span onclick="fillSmiles('c1ccccc1')">benzene</span>
+      <span onclick="fillSmiles('CC(=O)O')">acetic acid</span>
+      <span onclick="fillSmiles('CN1C=NC2=C1C(=O)N(C(=O)N2C)C')">caffeine</span>
+    </div>
+  </div>
+</div>
+
+<!-- Status -->
+<div class="status-bar" id="statusBar">
+  <div class="status-dot" id="statusDot"></div>
+  <span class="status-text" id="statusText"></span>
+  <span class="status-time" id="statusTime"></span>
+</div>
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
+
+<!-- Pipeline -->
+<div class="pipeline" id="pipeline">
+  <p class="pipeline-title">Pipeline</p>
+  <div class="step-list">
+    <div class="step" id="step-parse"><div class="step-num">1</div>Parse .xyz — extract atoms &amp; coordinates</div>
+    <div class="step" id="step-hf">  <div class="step-num">2</div>PySCF — Hartree-Fock &amp; density matrix (slow step)</div>
+    <div class="step" id="step-desc"><div class="step-num">3</div>Compute descriptors — electronic · SOAP · combined</div>
+    <div class="step" id="step-nn">  <div class="step-num">4</div>CorrNet &amp; GNN — all models predict E<sub>corr</sub></div>
+  </div>
+</div>
+
+<!-- Banners -->
+<div class="banner error" id="errorBanner"></div>
+<div class="banner warn"  id="warnBanner"></div>
+
+<!-- 3D Molecule Viewer (shown after prediction) -->
+<div class="viewer-wrap" id="viewerWrap">
+  <div class="viewer-header">
+    <span class="viewer-title">3D Structure</span>
+    <div class="viewer-controls">
+      <button class="btn-style active" id="btn-stick"  onclick="setViewStyle('stick')">Stick</button>
+      <button class="btn-style"        id="btn-sphere" onclick="setViewStyle('sphere')">Sphere</button>
+      <button class="btn-style"        id="btn-line"   onclick="setViewStyle('line')">Line</button>
+    </div>
+  </div>
+  <div id="molViewer"></div>
+</div>
+
+<!-- Results -->
+<div class="results" id="results">
+  <div class="result-header">
+    <span class="result-title">Results</span>
+    <span class="result-mol" id="resultMol"></span>
+  </div>
+
+  <div class="reference-row">
+    <div class="ecard hf">
+      <div class="ecard-top"></div>
+      <div class="card-tag">Reference</div>
+      <div class="card-label">E<sub>HF</sub> — Hartree-Fock</div>
+      <div class="card-value" id="val-hf-ev">—</div>
+      <div class="card-unit"  id="val-hf-ha">—</div>
+    </div>
+    <div class="ecard mp2">
+      <div class="ecard-top"></div>
+      <div class="card-tag">Reference</div>
+      <div class="card-label">E<sub>corr</sub> — MP2 (ground truth)</div>
+      <div class="card-value" id="val-mp2-ev">—</div>
+      <div class="card-unit"  id="val-mp2-kcal">—</div>
+    </div>
+  </div>
+
+  <div class="model-grid">
+    <div class="ecard elec">
+      <div class="ecard-top"></div>
+      <div class="card-tag">Electronic only</div>
+      <div class="card-label">108 density matrix eigenvalues/atom</div>
+      <div class="card-value" id="val-elec-ev">—</div>
+      <div class="card-unit"  id="val-elec-kcal">—</div>
+      <div class="card-delta" id="delta-elec"></div>
+    </div>
+    <div class="ecard soap">
+      <div class="ecard-top"></div>
+      <div class="card-tag">SOAP only</div>
+      <div class="card-label">Local structural descriptors (DScribe)</div>
+      <div class="card-value" id="val-soap-ev">—</div>
+      <div class="card-unit"  id="val-soap-kcal">—</div>
+      <div class="card-delta" id="delta-soap"></div>
+    </div>
+    <div class="ecard comb">
+      <div class="ecard-top"></div>
+      <div class="card-tag">Combined</div>
+      <div class="card-label">Electronic + SOAP (z-score normalised)</div>
+      <div class="card-value" id="val-comb-ev">—</div>
+      <div class="card-unit"  id="val-comb-kcal">—</div>
+      <div class="card-delta" id="delta-comb"></div>
+    </div>
+    <div class="ecard gnn">
+      <div class="ecard-top"></div>
+      <div class="card-tag">GNN</div>
+      <div class="card-label">Graph neural network on molecular graph</div>
+      <div class="card-value" id="val-gnn-ev">—</div>
+      <div class="card-unit"  id="val-gnn-kcal">—</div>
+      <div class="card-delta" id="delta-gnn"></div>
+    </div>
+  </div>
+
+  <div class="meta-row" id="metaRow"></div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <p class="footer-note">
+    Built on DeePHF — Chen, Y., Zhang, L., Wang, H., &amp; E, W. (2020).
+    DeePHF: A machine learning-based electron correlation and excitation energy predictor.
+    <em>The Journal of Chemical Physics</em>, 152, 034102.
+  </p>
+  <p class="footer-local">local inference &nbsp;·&nbsp; all computation runs on your machine</p>
+</footer>
+
+<script>
+/* ── DOM refs ── */
+const dropZone     = document.getElementById('dropZone');
+const fileInput    = document.getElementById('file-input');
+const statusBar    = document.getElementById('statusBar');
+const statusDot    = document.getElementById('statusDot');
+const statusText   = document.getElementById('statusText');
+const statusTime   = document.getElementById('statusTime');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar  = document.getElementById('progressBar');
+const pipeline     = document.getElementById('pipeline');
+const errorBanner  = document.getElementById('errorBanner');
+const warnBanner   = document.getElementById('warnBanner');
+const results      = document.getElementById('results');
+const viewerWrap   = document.getElementById('viewerWrap');
+
+/* ════════════════════════════════════════════════════
+   TAB SWITCHING
+═══════════════════════════════════════════════════ */
+function switchTab(tab) {
+  const isFile = tab === 'file';
+  document.getElementById('tab-file').classList.toggle('active',  isFile);
+  document.getElementById('tab-smiles').classList.toggle('active', !isFile);
+  dropZone.style.display = isFile ? '' : 'none';
+  document.getElementById('drawPanel').classList.toggle('active', !isFile);
+}
+
+/* ════════════════════════════════════════════════════
+   SMILES INPUT
+═══════════════════════════════════════════════════ */
+function fillSmiles(s) { document.getElementById('smilesInput').value = s; }
+function runFromSmiles() {
+  const s = document.getElementById('smilesInput').value.trim();
+  if (!s) { showError('Please enter a SMILES string first.'); return; }
+  runFromSmilesStr(s);
+}
+
+/* ════════════════════════════════════════════════════
+   CORE: POST SMILES → /predict_smiles
+═══════════════════════════════════════════════════ */
+async function runFromSmilesStr(smiles) {
+  clearBanners();
+  pipeline.classList.add('visible');
+  results.classList.remove('visible');
+  viewerWrap.classList.remove('visible');
+  resetSteps();
+  showProgress(true, true);
+
+  setStep('parse', 'active');
+  setStatus('Converting SMILES → 3D XYZ via RDKit…', 'running');
+  await sleep(100);
+
+  const t0 = Date.now();
+  const hfTimer = setInterval(() => {
+    const s = ((Date.now() - t0) / 1000).toFixed(0);
+    setStatus(`Running Hartree-Fock (PySCF) — ${s}s elapsed…`, 'running');
+  }, 1000);
+  setStatus('Running Hartree-Fock (PySCF) — this may take 10–60 seconds…', 'running');
+
+  try {
+    const resp = await fetch('/predict_smiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ smiles })
+    });
+    clearInterval(hfTimer);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || 'Server error');
+    }
+    const data = await resp.json();
+    setStep('parse', 'done');
+    setStep('hf',    'done');
+    setStep('desc', 'active'); await sleep(150); setStep('desc', 'done');
+    setStep('nn',   'active'); await sleep(200); setStep('nn',   'done');
+    showProgress(false);
+    setStatus(`Complete — ${data.formula} (${data.n_atoms} atoms, ${elapsed}s)`, 'success', `${elapsed}s`);
+    renderResults(data);
+    if (data.xyz) render3D(data.xyz);
+  } catch (err) {
+    clearInterval(hfTimer);
+    showProgress(false);
+    setStatus('Error during computation', 'error');
+    pipeline.classList.remove('visible');
+    showError(err.message);
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   FILE DROP / CLICK
+═══════════════════════════════════════════════════ */
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+async function handleFile(file) {
+  if (!file.name.endsWith('.xyz')) { showError('Only .xyz files are supported.'); return; }
+  clearBanners();
+  results.classList.remove('visible');
+  viewerWrap.classList.remove('visible');
+  pipeline.classList.add('visible');
+  resetSteps();
+  showProgress(true, true);
+
+  setStep('parse', 'active');
+  setStatus('Parsing .xyz file…', 'running');
+  await sleep(200);
+  setStep('parse', 'done');
+
+  setStep('hf', 'active');
+  const t0 = Date.now();
+  const hfTimer = setInterval(() => {
+    const s = ((Date.now() - t0) / 1000).toFixed(0);
+    setStatus(`Running Hartree-Fock (PySCF) — ${s}s elapsed…`, 'running');
+  }, 1000);
+  setStatus('Running Hartree-Fock (PySCF) — this may take 10–60 seconds…', 'running');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/predict', { method: 'POST', body: formData });
+    clearInterval(hfTimer);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || 'Server error');
+    }
+    const data = await resp.json();
+    setStep('hf',   'done');
+    setStep('desc', 'active'); await sleep(150); setStep('desc', 'done');
+    setStep('nn',   'active'); await sleep(200); setStep('nn',   'done');
+    showProgress(false);
+    setStatus(`Complete — ${data.filename} (${data.n_atoms} atoms, ${elapsed}s)`, 'success', `${elapsed}s`);
+    renderResults(data);
+    if (data.xyz) render3D(data.xyz);
+  } catch (err) {
+    clearInterval(hfTimer);
+    showProgress(false);
+    setStatus('Error during computation', 'error');
+    pipeline.classList.remove('visible');
+    showError(err.message);
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   3D VIEWER  (3Dmol.js)
+═══════════════════════════════════════════════════ */
+let viewer3D = null;
+let currentStyle = 'stick';
+
+function render3D(xyzText) {
+  viewerWrap.classList.add('visible');
+
+  // Lazily create the viewer
+  if (!viewer3D) {
+    viewer3D = $3Dmol.createViewer('molViewer', {
+      backgroundColor: '#f7f5f0'
+    });
+  }
+
+  viewer3D.clear();
+  viewer3D.addModel(xyzText, 'xyz');
+  applyStyle(currentStyle);
+  viewer3D.zoomTo();
+  viewer3D.render();
+
+  // make sure the active style button is highlighted
+  setViewStyle(currentStyle, false); // false = don't re-render
+}
+
+const STYLE_COLORS = {
+  C: '#c8c2b6', H: '#f0f0f0', O: '#e05252', N: '#5285e0',
+  S: '#e0c952', F: '#52e0a0', Cl: '#52e0a0', Br: '#c07030', I: '#8050c0'
+};
+
+function applyStyle(style) {
+  if (!viewer3D) return;
+  viewer3D.setStyle({}, {}); // clear
+  if (style === 'stick') {
+    viewer3D.setStyle({}, { stick: { radius: 0.15, colorscheme: 'Jmol' } });
+  } else if (style === 'sphere') {
+    viewer3D.setStyle({}, { sphere: { scale: 0.35, colorscheme: 'Jmol' } });
+    viewer3D.addStyle({},  { stick: { radius: 0.08, colorscheme: 'Jmol' } });
+  } else if (style === 'line') {
+    viewer3D.setStyle({}, { line: { colorscheme: 'Jmol', linewidth: 2 } });
+  }
+}
+
+function setViewStyle(style, doRender = true) {
+  currentStyle = style;
+  ['stick', 'sphere', 'line'].forEach(s => {
+    document.getElementById('btn-' + s).classList.toggle('active', s === style);
+  });
+  if (viewer3D) {
+    applyStyle(style);
+    if (doRender) viewer3D.render();
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   PIPELINE HELPERS
+═══════════════════════════════════════════════════ */
+const STEPS = ['parse', 'hf', 'desc', 'nn'];
+function setStep(name, state) {
+  const el = document.getElementById(`step-${name}`);
+  el.className = 'step ' + (state || '');
+  el.querySelector('.step-num').textContent = state === 'done' ? '✓' : STEPS.indexOf(name) + 1;
+}
+function resetSteps() { STEPS.forEach(s => setStep(s, '')); }
+function setStatus(text, state, time) {
+  statusBar.classList.add('visible');
+  statusText.textContent = text;
+  statusTime.textContent = time || '';
+  statusDot.className = 'status-dot ' + (state || '');
+}
+function showProgress(on, indeterminate) {
+  progressWrap.classList.toggle('visible', on);
+  progressBar.className = 'progress-bar' + (indeterminate ? ' indeterminate' : '');
+}
+function showError(msg) {
+  errorBanner.textContent = '✗ ' + msg;
+  errorBanner.classList.add('visible');
+}
+function clearBanners() {
+  errorBanner.classList.remove('visible');
+  warnBanner.classList.remove('visible');
+}
+
+/* ════════════════════════════════════════════════════
+   RESULTS RENDERING
+═══════════════════════════════════════════════════ */
+function renderResults(d) {
+  document.getElementById('resultMol').textContent = d.formula || d.filename;
+  set('val-hf-ev',    d.E_HF_eV,          v => fmt(v) + ' eV');
+  set('val-hf-ha',    d.E_HF_hartree,     v => v.toFixed(8) + ' Ha');
+  set('val-mp2-ev',   d.E_corr_mp2_eV,   v => fmt(v) + ' eV');
+  set('val-mp2-kcal', d.E_corr_mp2_kcal, v => fmt(v) + ' kcal/mol');
+  const mp2 = d.E_corr_mp2_eV;
+  renderModel('elec', d.E_corr_elec_eV, d.E_corr_elec_kcal, mp2);
+  renderModel('soap', d.E_corr_soap_eV, d.E_corr_soap_kcal, mp2);
+  renderModel('comb', d.E_corr_comb_eV, d.E_corr_comb_kcal, mp2);
+  renderModel('gnn',  d.E_corr_gnn_eV,  d.E_corr_gnn_kcal,  mp2);
+  const missing = [];
+  if (!d.E_corr_elec_eV) missing.push('electronic-only');
+  if (!d.E_corr_soap_eV) missing.push('SOAP-only');
+  if (!d.E_corr_comb_eV) missing.push('combined');
+  if (!d.E_corr_gnn_eV)  missing.push('GNN');
+  if (missing.length) {
+    warnBanner.textContent = `⚠ Model checkpoint(s) not found: ${missing.join(', ')}. Place the corresponding .pt files in the repository root.`;
+    warnBanner.classList.add('visible');
+  }
+  const meta = document.getElementById('metaRow');
+  meta.innerHTML = '';
+  [['atoms', d.n_atoms], ['compute time', d.elapsed_s + 's'], ['basis set', d.basis || 'cc-pVDZ']].forEach(([k, v]) => {
+    meta.innerHTML += `<div class="meta-chip"><strong>${v}</strong> ${k}</div>`;
+  });
+  results.classList.add('visible');
+}
+
+function renderModel(key, ev, kcal, mp2) {
+  const evEl   = document.getElementById(`val-${key}-ev`);
+  const kcalEl = document.getElementById(`val-${key}-kcal`);
+  const deltaEl= document.getElementById(`delta-${key}`);
+  if (ev === null || ev === undefined) {
+    evEl.textContent = '—'; kcalEl.textContent = 'model not loaded';
+    if (deltaEl) deltaEl.innerHTML = ''; return;
+  }
+  evEl.textContent   = fmt(ev)   + ' eV';
+  kcalEl.textContent = fmt(kcal) + ' kcal/mol';
+  if (mp2 !== null && mp2 !== undefined && deltaEl) {
+    const deltaKcal = (ev - mp2) * 23.0609;
+    const good = Math.abs(deltaKcal) < 1.0;
+    deltaEl.innerHTML = `Δ vs MP2: <span class="dval ${good?'good':'bad'}">${deltaKcal>=0?'+':''}${deltaKcal.toFixed(3)} kcal/mol</span>`;
+  }
+}
+
+function set(id, val, formatter) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = (val !== null && val !== undefined) ? formatter(val) : '—';
+}
+function fmt(v) { return (v === null || v === undefined) ? '—' : v.toFixed(4); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
