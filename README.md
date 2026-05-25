@@ -75,8 +75,6 @@ python scripts/k_sweep.py # not in the paper due to lack of space
 python scripts/make_artifacts.py
 ```
 
-`make all` chains steps 2-5 once features exist.
-
 ## Hyperparameters
 
 Fixed across every cell (so architecture and descriptor are the only sources
