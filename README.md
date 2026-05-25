@@ -22,9 +22,9 @@ chemical base:
 | Tag                  | Dims (water example) | Contents                          |
 |----------------------|----------------------|-----------------------------------|
 | `chemical`           | 17                   | RDKit only                        |
-| `chemical_elec`      | 125                  | RDKit + 108-dim electronic        |
+| `chemical_elec`      | 17 + 108             | RDKit + 108-dim electronic        |
 | `chemical_soap`      | 17 + N_soap          | RDKit + DScribe SOAP              |
-| `chemical_elec_soap` | 125 + N_soap         | RDKit + electronic + SOAP         |
+| `chemical_elec_soap` | 17 + 108 + N_soap    | RDKit + electronic + SOAP         |
 
 Datasets are the four MOB-ML subsets of Cheng et al. 2019:
 `water`, `alkanes`, `qm7b_T`, `gdb13_T`. Target is the correlation energy
