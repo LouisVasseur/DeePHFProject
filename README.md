@@ -40,10 +40,10 @@ Datasets are the four MOB-ML subsets of Cheng et al. 2019:
 ## Layout
 
 ```
+app_streamlit/ code for the Streamlit app used for demo/inference with best model checkpoints
 deephf/      library: data loader, model, training loop
 prepare/     one-off feature preparation (RDKit graph, SOAP, electronic)
 scripts/     experiments and figure generation
-slurm/       SLURM submission scripts
 ```
 
 ## Quick start
@@ -69,7 +69,7 @@ python scripts/train_grid.py --seed 43 --resume
 python scripts/ablate_edge_bias.py
 python scripts/ablate_edge_features.py --dataset alkanes
 python scripts/test_invariance.py
-python scripts/k_sweep.py          # appendix
+python scripts/k_sweep.py # not in the paper due to lack of space
 
 # 5. figures + LaTeX tables
 python scripts/make_artifacts.py
@@ -89,10 +89,3 @@ of variation):
 - Per-element energy bias initialised by OLS on the training split and frozen
 - 80/10/10 train/val/test split, fixed at feature-preparation time
 - Default seed 43 (primary), seed 44 for a subset of headline cells
-
-## Reproducing the paper
-
-```bash
-sbatch slurm/prepare.sbatch     # ~5h on V100 with GPU4PySCF
-sbatch slurm/train_all.sbatch   # ~12h on V100
-```
