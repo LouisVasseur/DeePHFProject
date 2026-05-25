@@ -33,9 +33,9 @@ def get_hf_dataset (name_dataset: str, data_dir_path: str, save_path: str):
     mob_ml_dataset_hf.save_to_disk(save_path)
 
 @click.command()
-@click.option("--name_dataset", "-d", type=str, default = 'water')
-@click.option("--data_dir_path", "-p", type=str)
-@click.option("--save_path", '-s', type=str)
+@click.option("--name-dataset", "-d", type=str, default = 'water')
+@click.option("--data-dir-path", "-p", type=str)
+@click.option("--save-path", '-s', type=str)
 
 def main(
     name_dataset: str,
