@@ -147,9 +147,8 @@ def _predict_one(model: UnifiedModel,
     n = len(Z)
     X_t = torch.from_numpy(X).float().unsqueeze(0)                       # (1, n, D)
 
-    # Replicate broken training contract:
-    Z_t = torch.ones(1, n, dtype=torch.long)                              # (1, n)
-    coords_t = torch.zeros(1, n, 3, dtype=torch.float)                    # (1, n, 3)
+    Z_t = torch.from_numpy(Z).long().unsqueeze(0)                         # (1, n)
+    coords_t = torch.from_numpy(coords).float().unsqueeze(0)              # (1, n, 3)
 
     mask = torch.ones(1, n, dtype=torch.bool)
     ei = torch.from_numpy(edge_index).long().T.unsqueeze(0)              # (1, 2, n_edges)

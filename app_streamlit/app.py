@@ -73,7 +73,7 @@ _SYMBOL_TO_Z = {
 }
 _Z_TO_SYMBOL = {v: k for k, v in _SYMBOL_TO_Z.items()}
 
-_DEFAULT_CKPT_DIR = _HERE / "checkpoints"
+_DEFAULT_CKPT_DIR = _HERE / "checkpoints_best"
 _DEFAULT_CACHE_DIR = _HERE / "cache_electronic"
 
 
@@ -235,16 +235,56 @@ def input_panel() -> Optional[str]:
 # UI: results display
 # ══════════════════════════════════════════════════════════════════════════
 
-def display_results(result: dict) -> None:
-    st.subheader("Reference (PySCF, cc-pVDZ)")
-    c1, c2, c3 = st.columns(3)
-    if result.get("E_HF_Ha") is not None:
-        c1.metric("E_HF", f"{result['E_HF_Ha']:.6f} Ha", help="Hartree–Fock total energy")
-    if result.get("E_corr_MP2_Ha") is not None:
-        c2.metric(
-            "E_corr (MP2)",
-            f"{result['E_corr_MP2_Ha']:.6f} Ha",
-            f"{result['E_corr_MP2_kcal']:.2f} kcal/mol",
+def display_results(result: dict, xyz_text: Optional[str] = None) -> None:
+    # CCSD(T)/cc-pVTZ ground-truth lookup. Matches user's molecule against the
+    # training set via canonical SMILES; when matched, we know the true label
+    # the models were trained against, so chemical-accuracy badges become
+    # meaningful (the previous "Δ vs MP2" badge was structurally biased by the
+    # method gap MP2/cc-pVDZ → CCSD(T)/cc-pVTZ, ~20–100 kcal/mol on organics).
+    try:
+        from groundtruth import lookup_gt
+        gt = lookup_gt(xyz=xyz_text) if xyz_text else None
+    except Exception as e:
+        logger.warning(f"Ground-truth lookup unavailable: {e}")
+        gt = None
+
+    if gt is not None:
+        st.subheader("Reference: CCSD(T)/cc-pVTZ (training-set lookup)")
+        c1, c2, c3 = st.columns(3)
+        c1.metric(
+            "E_corr (true)",
+            f"{gt['mean_kcal']:.2f} kcal/mol",
+            help=(
+                f"Mean over {gt['n']} training-set conformers "
+                f"(σ = {gt['std_kcal']:.3f} kcal/mol). "
+                f"SMILES matched against: {', '.join(gt['datasets'])}."
+            ),
+        )
+        c2.metric("σ across conformers", f"{gt['std_kcal']:.3f} kcal/mol")
+        c3.metric("n conformers", str(gt['n']))
+        if result.get("E_corr_MP2_kcal") is not None:
+            gap = gt["mean_kcal"] - result["E_corr_MP2_kcal"]
+            st.caption(
+                f"PySCF reference (MP2/cc-pVDZ): E_corr = {result['E_corr_MP2_kcal']:.2f} kcal/mol. "
+                f"Method-gap to CCSD(T)/cc-pVTZ: {gap:+.2f} kcal/mol (expected — "
+                "models target CCSD(T)/cc-pVTZ, MP2/cc-pVDZ recovers less correlation)."
+            )
+    else:
+        st.subheader("Reference: PySCF MP2/cc-pVDZ (no training-set match)")
+        c1, c2, _ = st.columns(3)
+        if result.get("E_HF_Ha") is not None:
+            c1.metric("E_HF", f"{result['E_HF_Ha']:.6f} Ha", help="Hartree–Fock total energy")
+        if result.get("E_corr_MP2_Ha") is not None:
+            c2.metric(
+                "E_corr (MP2)",
+                f"{result['E_corr_MP2_Ha']:.6f} Ha",
+                f"{result['E_corr_MP2_kcal']:.2f} kcal/mol",
+            )
+        st.caption(
+            "This molecule's SMILES isn't in the training set, so no CCSD(T)/cc-pVTZ "
+            "ground truth available. Model predictions target CCSD(T)/cc-pVTZ — expect "
+            "a method gap of 20–100 kcal/mol from the MP2/cc-pVDZ reference above. "
+            "No chemical-accuracy badge shown in this mode."
         )
 
     st.divider()
@@ -255,23 +295,25 @@ def display_results(result: dict) -> None:
         st.warning("No model predictions produced.")
         return
 
-    # Group by dataset
     rows = []
     for name, p in preds.items():
         if "error" in p:
             rows.append({"name": name, "error": p["error"]})
             continue
-        delta_kcal = None
-        if result.get("E_corr_MP2_kcal") is not None:
-            delta_kcal = p["e_corr_kcal"] - result["E_corr_MP2_kcal"]
+        delta_vs_gt = (p["e_corr_kcal"] - gt["mean_kcal"]) if gt is not None else None
+        delta_vs_mp2 = (
+            p["e_corr_kcal"] - result["E_corr_MP2_kcal"]
+            if result.get("E_corr_MP2_kcal") is not None else None
+        )
         rows.append({
             "name":          name,
             "dataset":       p["dataset"],
             "descriptor":    p["descriptor"],
             "architecture":  p["architecture"],
-            "e_corr_eV":     p["e_corr_eV"],
             "e_corr_kcal":   p["e_corr_kcal"],
-            "delta_kcal":    delta_kcal,
+            "e_corr_eV":     p["e_corr_eV"],
+            "delta_vs_gt":   delta_vs_gt,
+            "delta_vs_mp2":  delta_vs_mp2,
             "test_mae_mHa":  p["test_mae_mHa"],
         })
 
@@ -279,26 +321,44 @@ def display_results(result: dict) -> None:
     if valid:
         for r in valid:
             with st.container(border=True):
-                cols = st.columns([3, 2, 2, 2, 2])
+                # 4 columns (dropped redundant eV) to give kcal value room to render
+                cols = st.columns([3, 2, 2, 2])
                 cols[0].markdown(
                     f"**{r['descriptor']}** — `{r['architecture']}` ({r['dataset']})\n\n"
                     f"<small>Test MAE on holdout: {r['test_mae_mHa']:.3f} mHa</small>",
                     unsafe_allow_html=True,
                 )
-                cols[1].metric("E_corr", f"{r['e_corr_kcal']:.2f} kcal/mol")
-                cols[2].metric("E_corr", f"{r['e_corr_eV']:.4f} eV")
-                if r["delta_kcal"] is not None:
-                    sign = "+" if r["delta_kcal"] >= 0 else ""
-                    delta_str = f"{sign}{r['delta_kcal']:.3f} kcal/mol"
-                    within_acc = abs(r["delta_kcal"]) < CHEM_ACCURACY_KCAL
-                    cols[3].metric(
-                        "Δ vs MP2",
-                        delta_str,
+                cols[1].metric("E_corr (pred)", f"{r['e_corr_kcal']:.2f} kcal/mol")
+
+                if r["delta_vs_gt"] is not None:
+                    # GT mode: compare to true CCSD(T)/cc-pVTZ label, show CA badge
+                    sign = "+" if r["delta_vs_gt"] >= 0 else ""
+                    cols[2].metric(
+                        "Δ vs CCSD(T)",
+                        f"{sign}{r['delta_vs_gt']:.3f} kcal/mol",
                         delta_color="off",
-                        help="Green if within chemical accuracy (1 kcal/mol)",
+                        help="Model prediction minus true CCSD(T)/cc-pVTZ label.",
                     )
-                    cols[4].markdown(
-                        "✅ chem. acc." if within_acc else "❌ above CA",
+                    within_ca = abs(r["delta_vs_gt"]) < CHEM_ACCURACY_KCAL
+                    cols[3].markdown(
+                        "✅ within CA" if within_ca else "❌ above CA",
+                        help="|Δ| < 1 kcal/mol vs true CCSD(T)/cc-pVTZ.",
+                    )
+                elif r["delta_vs_mp2"] is not None:
+                    # Fallback: show method gap to MP2, no CA judgment
+                    sign = "+" if r["delta_vs_mp2"] >= 0 else ""
+                    cols[2].metric(
+                        "vs MP2 (method gap)",
+                        f"{sign}{r['delta_vs_mp2']:.2f} kcal/mol",
+                        delta_color="off",
+                        help=(
+                            "Method gap: model targets CCSD(T)/cc-pVTZ, reference is MP2/cc-pVDZ. "
+                            "20–100 kcal/mol gap is expected, not a model error."
+                        ),
+                    )
+                    cols[3].markdown(
+                        "<small>ℹ️ no GT — CA undecidable</small>",
+                        unsafe_allow_html=True,
                     )
 
     errors = [r for r in rows if "error" in r]
@@ -374,7 +434,7 @@ def main() -> None:
         if not result.get("success"):
             st.error(result.get("error", "Prediction failed for an unknown reason."))
             return
-        display_results(result)
+        display_results(result, xyz_text=xyz_text)
 
 
 if __name__ == "__main__":
