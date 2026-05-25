@@ -8,3 +8,4 @@ py3Dmol
 dscribe
 streamlit-ketcher
 pandas
+openbabel-wheel
