@@ -1,15 +1,10 @@
-torch>=2.1
+streamlit
+torch
 numpy
-scipy
-matplotlib
-tqdm
-datasets>=2.14         # HuggingFace datasets, load_from_disk
+datasets
+pyscf
 rdkit
-openbabel-wheel        # xyz -> mol via pybel
-dscribe                # SOAP
-pyscf                  # HF + density matrix + MP2
-ase                    # atoms object for DScribe
-
-# Streamlit app deps
-streamlit>=1.31
-py3Dmol                # 3D molecule visualisation
+py3Dmol
+dscribe
+streamlit-ketcher
+pandas
