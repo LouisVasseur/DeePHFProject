@@ -4,6 +4,8 @@ Code for the AI4Chemistry course project at EPFL.
 
 The report can be found here, on the **main** branch, under the name `Report_Group_4_Correlation_Energy_Prediction.pdf`.
 
+For the web interface, visit the link: https://huggingface.co/spaces/LouisVasseur/deephf-soap-demo
+
 This branch contains a combined implementation of the different architectures that were studied in this project and of the web-interface. If you want to see the initial implementation of the GNNs, check-out the dedicated branch **graph_branch**. If you want to see the initial implementation of the interface, check-out the dedicated branch **add-web-interface**.
 
 The project re-implements the DeePHF correlation-energy predictor of Chen et al. (2020) and tests
