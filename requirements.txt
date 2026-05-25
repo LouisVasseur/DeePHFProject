@@ -1,0 +1,11 @@
+torch>=2.1
+numpy
+scipy
+matplotlib
+tqdm
+datasets>=2.14         # HuggingFace datasets, load_from_disk
+rdkit
+openbabel-wheel        # xyz -> mol via pybel
+dscribe                # SOAP
+pyscf                  # HF + density matrix
+ase                    # atoms object for DScribe
