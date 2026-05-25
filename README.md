@@ -2,7 +2,7 @@
 
 Code for the AI4Chemistry course project at EPFL.
 
-The report can be found here, on the **main** branch, under the name `Report_Group_4_Correlation_Energy_Prediction.pdf`.
+The report can be found here, on the **main** branch, under the name `report.pdf`.
 
 For the web interface, visit the link: https://huggingface.co/spaces/LouisVasseur/deephf-soap-demo
 
