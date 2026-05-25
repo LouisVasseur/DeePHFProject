@@ -1,6 +1,6 @@
 model:
   in_dimension: 17        # Number of node features
-  hidden_dimension: 64
+  hidden_dimension: 64    # Hidden dimension used in the graph
   out_dimension: 1
   T: 5 # Number of timesteps during message passing
   version: v3 # v1 uses GRU for the update function while v2 uses LSTM for the update function while v3 is based on attention
@@ -16,7 +16,7 @@ train:
     beta1: 0.9
     beta2: 0.999
   scheduler:
-    type: plateau          # currently only plateau is supported
+    type: plateau          
     factor: 0.5
     patience: 5
     min_lr: 1.e-5
