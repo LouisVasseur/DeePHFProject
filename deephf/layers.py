@@ -31,16 +31,27 @@ class RBFExpansion(nn.Module):
 
 # Sum-aggregation MPNN layer: m_ij = MLP([h_src, h_dst, e_ij]).
 class MPNNLayer(nn.Module):
-    """Sum-aggregation MPNN: m_ij = MLP([h_src, h_dst, e_ij])."""
+    """Sum-aggregation MPNN: m_ij = MLP([h_src, h_dst, e_ij]).
 
-    def __init__(self, node_dim, edge_dim):
+    update="mlp" (default): h' = LayerNorm(h + MLP(sum_m))
+    update="gru"          : h' = LayerNorm(GRUCell(sum_m, h))   [Gilmer 2017 canonical]
+
+    Note : in report and all tables for the B_MPNN, we use update="mlp" for a cleaner ablation w.r.t A_mlp 
+    """
+
+    def __init__(self, node_dim, edge_dim, update="mlp"):
         super().__init__()
+        assert update in ("mlp", "gru")
+        self.update = update
         self.msg = nn.Sequential(
             nn.Linear(2 * node_dim + edge_dim, node_dim), nn.GELU(),
             nn.Linear(node_dim, node_dim))
-        self.upd = nn.Sequential(
-            nn.Linear(node_dim, node_dim), nn.GELU(),
-            nn.Linear(node_dim, node_dim))
+        if update == "mlp":
+            self.upd = nn.Sequential(
+                nn.Linear(node_dim, node_dim), nn.GELU(),
+                nn.Linear(node_dim, node_dim))
+        else:
+            self.gru = nn.GRUCell(node_dim, node_dim)
         self.norm = nn.LayerNorm(node_dim)
 
     def forward(self, h, edge_index, edge_feat, edge_mask):
@@ -53,7 +64,13 @@ class MPNNLayer(nn.Module):
         m = m * edge_mask.unsqueeze(-1).to(m.dtype)
         agg = torch.zeros_like(h, dtype=m.dtype)
         agg.scatter_add_(1, dst.unsqueeze(-1).expand(-1, -1, D), m)
-        return self.norm(h + self.upd(agg.to(h.dtype)))
+        agg = agg.to(h.dtype)
+
+        if self.update == "mlp":
+            return self.norm(h + self.upd(agg))
+        # GRU branch: GRUCell needs 2D inputs (B*A, D), then reshape back
+        new_h = self.gru(agg.reshape(B * A, D), h.reshape(B * A, D))
+        return self.norm(new_h.view(B, A, D))
 
 # gat_softmax: numerically stable masked softmax of attention scores over neighbors, per head. Useful for GAT and GAT-edge layers.
 def gat_softmax(scores, dst, edge_mask, B, A, H):

@@ -4,7 +4,9 @@
 
   bias_only     : per-element OLS bias only (no NN)
   A_mlp         : per-atom MLP, no message passing
-  B_mpnn        : sum-aggregation MPNN with RBF + bond-type edges
+   B_mpnn        : sum-aggregation MPNN with RBF + bond-type edges
+                  (update fn: MLP by default, GRUCell if mpnn_update="gru" for
+                   canonical Gilmer 2017 MPNN)
   C_gat         : multi-head GAT, no edge information
   D_gat_edge    : multi-head GAT with edge-bias attention (Uni-Mol style)
 
@@ -28,8 +30,9 @@ ARCHITECTURES = ("bias_only", "A_mlp", "B_mpnn", "C_gat", "D_gat_edge")
 class UnifiedModel(nn.Module):
 
     def __init__(self, input_dim, architecture, edge_feat_dim,
-                 node_dim=NODE_DIM, rounds=MP_ROUNDS, n_heads=N_HEADS,
-                 use_edge_bias=True, max_z=20):
+                node_dim=NODE_DIM, rounds=MP_ROUNDS, n_heads=N_HEADS,
+                use_edge_bias=True, max_z=20,
+                mpnn_update="mlp"): 
         super().__init__()
         assert architecture in ARCHITECTURES
         self.architecture = architecture
@@ -57,7 +60,8 @@ class UnifiedModel(nn.Module):
             self.rbf = RBFExpansion()
             ed = RBF_N + edge_feat_dim
             self.mp = nn.ModuleList(
-                [MPNNLayer(node_dim, ed) for _ in range(rounds)])
+                [MPNNLayer(node_dim, ed, update=mpnn_update)
+                 for _ in range(rounds)])
         elif architecture == "C_gat":
             self.mp = nn.ModuleList(
                 [MultiHeadGATLayer(node_dim, n_heads=n_heads)
@@ -74,7 +78,7 @@ class UnifiedModel(nn.Module):
             nn.Linear(node_dim, node_dim), nn.GELU(),
             nn.LayerNorm(node_dim), nn.Linear(node_dim, 1))
 
-    # ── initialisation from the train split ──────────────────────────
+    # initialisation from the train split
     @torch.no_grad()
     def init_normalization(self, X, mask):
         flat = X[mask]
@@ -88,7 +92,7 @@ class UnifiedModel(nn.Module):
         self.elem_bias.weight.requires_grad_(False)
         return r2
 
-    # ── forward ──────────────────────────────────────────────────────
+    # forward 
     def build_edge_feat(self, coords, edge_index, edge_type):
         """[RBF(d_ij), bond features] concat. Public for ablation wrappers."""
         B, E = coords.shape[0], edge_index.shape[-1]
