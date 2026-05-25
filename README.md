@@ -52,7 +52,7 @@ scripts/     experiments and figure generation
 # 0. install
 pip install -r requirements.txt
 
-# 1. prepare features (slow; needs the MOB-ML raw data)
+# 1. prepare features (slow; needs the MOB-ML raw data) NOTE THAT the MOB-ML dataset must be downloaded for this to work
 python prepare/prepare_mobml.py --data-dir ./deephf_datasets --subset water
 python prepare/compute_descriptors.py --subset water
 # repeat for alkanes, qm7b_T, gdb13_T
