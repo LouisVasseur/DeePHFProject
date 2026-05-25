@@ -1,7 +1,10 @@
 # Augmenting DeePHF with geometric descriptors
 
-Code for the AI4Chemistry course project at EPFL. The project re-implements
-the DeePHF correlation-energy predictor of Chen et al. (2020) and tests
+Code for the AI4Chemistry course project at EPFL.
+
+This branch contains a combined implementation of the different architectures that were studied in this project and of the web-interface. If you want to see the initial implementation of the GNNs, check-out the dedicated branch **graph_branch**. If you want to see the initial implementation of the interface, check-out the dedicated branch **add-web-interface**.
+
+The project re-implements the DeePHF correlation-energy predictor of Chen et al. (2020) and tests
 whether adding SOAP geometric descriptors to the original electronic
 descriptors improves accuracy, and whether the gain depends on the
 inductive bias of the prediction network.
